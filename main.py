@@ -55,8 +55,6 @@ def main():
 
 
     for file in validfiles:
-        print(f"Uploading data from file {file} to database")
-        log.write(f"Uploading data from file {file} to database\n")
 
         f = open(f"{path}/{file}", "r")
 
@@ -67,66 +65,70 @@ def main():
         cur.execute(f"INSERT INTO PowerDataFiles (filename) \
                         VALUES ('{file}')")
 
-        for line in f:
-            if count == 2:  # line 2 contains the name of the meter
-                x = line.split(",")
-                device = x[4][1:-1]
-                device = device.replace(" ", "")
-                device = "METER" + device
-                conn.commit()
-                # adds a field to the database for the meter if it's not already in the database
-                try:
-                    cur.execute(f'ALTER TABLE PowerMeterReadings \
-                            ADD "{device}" VARCHAR(255)')
-                except psycopg2.Error:
-                    conn.rollback()
-                    
+        try:
+            for line in f:
+                if count == 2:  # line 2 contains the name of the meter
+                    x = line.split(",")
+                    device = x[4][1:-1]
+                    device = device.replace(" ", "")
+                    device = "METER" + device
+                    conn.commit()
+                    # adds a field to the database for the meter if it's not already in the database
+                    try:
+                        cur.execute(f'ALTER TABLE PowerMeterReadings \
+                                ADD "{device}" VARCHAR(255)')
+                    except psycopg2.Error:
+                        conn.rollback()
+                        
+                    count += 1
+                    continue
+                elif count < 8:  # the first 7 lines excluding line 2 are not relevent, so ignores
+                    count += 1
+                    continue
+                line = line.strip('\n')
+
+                x = re.split("\"", line)
+
+                # removes unwanted elements in the list
+                while '' in x:
+                    x.remove('')
+
+                while ' ' in x:
+                    x.remove(' ')
+
+                while ',' in x:
+                    x.remove(',')
+
+                timeStamp = x[2]
+                meterReading = x[3]
+
+                timeStamp = datetime.strptime(timeStamp, '%Y-%m-%d %H:%M:%S')  # turns the timestamp into the correct format for uploading
+
+                # checks if the timestamp already exists in the database, updates it if it does, and creates it if it doesn't
+                cur.execute(f"SELECT EXISTS(SELECT 1 FROM PowerMeterReadings WHERE time='{timeStamp}')")
+                if cur.fetchone()[0]:
+                    cur.execute(
+                        f'UPDATE PowerMeterReadings SET "{device}" = %s WHERE time = %s',
+                        (meterReading, timeStamp)
+                    )
+                else:
+                    cur.execute(
+                        f'INSERT INTO PowerMeterReadings (time, "{device}") VALUES (%s, %s)',
+                        (timeStamp, meterReading)
+                    )
                 count += 1
-                continue
-            elif count < 8:  # the first 7 lines excluding line 2 are not relevent, so ignores
-                count += 1
-                continue
-            line = line.strip('\n')
 
-            x = re.split("\"", line)
-
-            # removes unwanted elements in the list
-            while '' in x:
-                x.remove('')
-
-            while ' ' in x:
-                x.remove(' ')
-
-            while ',' in x:
-                x.remove(',')
-
-            timeStamp = x[2]
-            meterReading = x[3]
-
-            timeStamp = datetime.strptime(timeStamp, '%Y-%m-%d %H:%M:%S')  # turns the timestamp into the correct format for uploading
-
-            # checks if the timestamp already exists in the database, updates it if it does, and creates it if it doesn't
-            cur.execute(f"SELECT EXISTS(SELECT 1 FROM PowerMeterReadings WHERE time='{timeStamp}')")
-            if cur.fetchone()[0]:
-                cur.execute(
-                    f'UPDATE PowerMeterReadings SET "{device}" = %s WHERE time = %s',
-                    (meterReading, timeStamp)
-                )
-            else:
-                cur.execute(
-                    f'INSERT INTO PowerMeterReadings (time, "{device}") VALUES (%s, %s)',
-                    (timeStamp, meterReading)
-                )
-
-            count += 1
+            log.write(f"File {file} has been uploaded\n")
+        except:
+            log.write(f"File {file} failed to upload\n")
 
         f.close()
+        
+        conn.commit()
 
-    conn.commit()
-    print("Records created successfully")
-    log.write("Records created successfully\n")
     conn.close()
     log.close()
+    print("Closed database successfully")
 
 if __name__ == '__main__':
     main()
