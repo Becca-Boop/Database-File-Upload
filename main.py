@@ -8,7 +8,12 @@ import config
 def main():
     cwd = os.getcwd()
     logpath = f"{cwd}/log.txt"
-    log = open(logpath, "w")
+    if os.path.exists(logpath):
+        log = open(logpath, "a")
+    else:
+        log = open(logpath, "w")
+
+    log.write(f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")  # write start time to log
     
     database, user, password, host, port, foldername = config.config()
     try:
@@ -17,15 +22,11 @@ def main():
     except psycopg2.Error as e:
         log.write("Error Opening database:\n")
         log.write(str(e))
+        log.write(f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
         log.close()
         exit(e)
 
-
-    print("Opened database successfully")
-
     log.write("Opened database successfully\n")
-
-    
 
     path = f"{cwd}/{foldername}"
 
@@ -35,6 +36,7 @@ def main():
 
     if not os.path.isdir(path):
         log.write(f"Cannot find folder {foldername}")
+        log.write(f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
         log.close()
         conn.close()
         exit(f"Cannot find folder {foldername}")
@@ -76,7 +78,7 @@ def main():
                     # adds a field to the database for the meter if it's not already in the database
                     try:
                         cur.execute(f'ALTER TABLE PowerMeterReadings \
-                                ADD "{device}" VARCHAR(255)')
+                                ADD "{device}" INTEGER')
                     except psycopg2.Error:
                         conn.rollback()
                         
@@ -127,8 +129,13 @@ def main():
         conn.commit()
 
     conn.close()
+
+    log.write("Closed database successfully\n")
+
+    log.write(f"{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n\n\n")  # write end time to log
     log.close()
-    print("Closed database successfully")
+
+
 
 if __name__ == '__main__':
     main()
