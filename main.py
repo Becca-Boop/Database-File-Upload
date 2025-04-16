@@ -1,3 +1,5 @@
+# 1.03
+
 import re
 import os
 import psycopg2
@@ -78,7 +80,7 @@ def main():
                     # adds a field to the database for the meter if it's not already in the database
                     try:
                         cur.execute(f'ALTER TABLE PowerMeterReadings \
-                                ADD "{device}" INTEGER')
+                                ADD "{device}" BIGINT')
                     except psycopg2.Error:
                         conn.rollback()
                         
@@ -121,7 +123,8 @@ def main():
                 count += 1
 
             log.write(f"File {file} has been uploaded\n")
-        except:
+        except e:
+            log.write(f"{e}\n")
             log.write(f"File {file} failed to upload\n")
 
         f.close()
