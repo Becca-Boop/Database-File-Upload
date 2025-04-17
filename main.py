@@ -1,4 +1,4 @@
-# 1.03
+# 1.04
 
 import re
 import os
@@ -47,7 +47,7 @@ def main():
     for file in os.listdir(path):
         match = pattern.match(file)
         if match:
-            cur.execute(f"SELECT EXISTS(SELECT 1 FROM PowerDataFiles WHERE filename='{file}')")
+            cur.execute(f"SELECT EXISTS(SELECT 1 FROM powerdatafiles WHERE filename='{file}')")
             if cur.fetchone()[0]:
                 pass
             else:
@@ -65,8 +65,8 @@ def main():
         device = ""
         count = 1
 
-        # add the file name to the table PowerDataFiles so doesn't get uploaded more than once
-        cur.execute(f"INSERT INTO PowerDataFiles (filename) \
+        # add the file name to the table powerdatafiles so doesn't get uploaded more than once
+        cur.execute(f"INSERT INTO powerdatafiles (filename) \
                         VALUES ('{file}')")
 
         try:
@@ -75,11 +75,12 @@ def main():
                     x = line.split(",")
                     device = x[4][1:-1]
                     device = device.replace(" ", "")
-                    device = "METER" + device
+                    device = "meter" + device
+                    device = device.lower()
                     conn.commit()
                     # adds a field to the database for the meter if it's not already in the database
                     try:
-                        cur.execute(f'ALTER TABLE PowerMeterReadings \
+                        cur.execute(f'ALTER TABLE powermeterreadings \
                                 ADD "{device}" BIGINT')
                     except psycopg2.Error:
                         conn.rollback()
@@ -106,24 +107,26 @@ def main():
                 timeStamp = x[2]
                 meterReading = x[3]
 
+                if meterReading == 'NaN':
+                    meterReading = '-1'
                 timeStamp = datetime.strptime(timeStamp, '%Y-%m-%d %H:%M:%S')  # turns the timestamp into the correct format for uploading
 
                 # checks if the timestamp already exists in the database, updates it if it does, and creates it if it doesn't
-                cur.execute(f"SELECT EXISTS(SELECT 1 FROM PowerMeterReadings WHERE time='{timeStamp}')")
+                cur.execute(f"SELECT EXISTS(SELECT 1 FROM powermeterreadings WHERE time='{timeStamp}')")
                 if cur.fetchone()[0]:
                     cur.execute(
-                        f'UPDATE PowerMeterReadings SET "{device}" = %s WHERE time = %s',
+                        f'UPDATE powermeterreadings SET "{device}" = %s WHERE time = %s',
                         (meterReading, timeStamp)
                     )
                 else:
                     cur.execute(
-                        f'INSERT INTO PowerMeterReadings (time, "{device}") VALUES (%s, %s)',
+                        f'INSERT INTO powermeterreadings (time, "{device}") VALUES (%s, %s)',
                         (timeStamp, meterReading)
                     )
                 count += 1
 
             log.write(f"File {file} has been uploaded\n")
-        except e:
+        except Exception as e:
             log.write(f"{e}\n")
             log.write(f"File {file} failed to upload\n")
 
